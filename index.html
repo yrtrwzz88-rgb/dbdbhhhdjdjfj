@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<title>قريب مني</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+:root{--bg:#07111f;--card:#fff;--text:#102033;--muted:#708096;--primary:#0b7cff;--green:#13b87a}
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Tahoma,Arial,sans-serif;background:#eef3f8;color:var(--text)}
+#app{height:100%;display:flex;flex-direction:column;max-width:900px;margin:auto;background:#fff;overflow:hidden;position:relative}
+.top{position:absolute;z-index:1000;top:0;right:0;left:0;padding:14px 14px 0;pointer-events:none}
+.header{background:rgba(7,17,31,.94);color:#fff;border-radius:0 0 24px 24px;padding:14px 15px 13px;box-shadow:0 7px 24px #0004;pointer-events:auto}
+.brand{display:flex;align-items:center;justify-content:space-between}.brand h1{font-size:21px;margin:0}.brand small{color:#b9c7d8}
+.locationline{margin-top:8px;font-size:12px;color:#c9d5e4;display:flex;gap:6px;align-items:center}
+.search{margin-top:10px;background:#fff;border-radius:14px;display:flex;align-items:center;padding:5px;box-shadow:0 4px 18px #0002}
+.search input{border:0;outline:0;flex:1;padding:10px;font-size:14px;min-width:0}.search button{border:0;background:#eef5ff;color:#0969da;border-radius:10px;padding:9px 11px;font-weight:bold}
+.filters{display:flex;gap:7px;overflow:auto;margin-top:9px;padding-bottom:2px}.filters button{border:1px solid #ffffff33;background:#ffffff18;color:#fff;border-radius:20px;padding:8px 12px;white-space:nowrap;font-weight:bold;font-size:12px}.filters button.active{background:#fff;color:#07111f}
+#map{flex:1;min-height:0}
+.locbtn{position:absolute;z-index:1100;left:15px;bottom:205px;width:48px;height:48px;border:0;border-radius:50%;background:#fff;box-shadow:0 5px 20px #0003;font-size:21px}
+.bottom{position:absolute;z-index:1000;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.06) 18%,rgba(255,255,255,.98) 32%);padding:42px 10px 10px}
+.sheet{background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -4px 25px #0002;padding:11px 10px max(10px,env(safe-area-inset-bottom))}
+.handle{width:38px;height:4px;background:#cbd5e1;border-radius:9px;margin:0 auto 8px}.sheethead{display:flex;justify-content:space-between;align-items:center;padding:0 3px 8px}.sheethead b{font-size:15px}.sheethead span{font-size:11px;color:var(--muted)}
+.cards{display:flex;gap:9px;overflow-x:auto;padding-bottom:2px;scroll-snap-type:x mandatory}.cards::-webkit-scrollbar{display:none}
+.card{min-width:245px;max-width:285px;background:#f7f9fc;border:1px solid #e8edf4;border-radius:16px;padding:11px;scroll-snap-align:start}.cardtop{display:flex;gap:9px}.ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:#eaf3ff;font-size:21px}.ct{min-width:0;flex:1}.name{font-weight:bold;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.type{font-size:10px;color:var(--muted);margin-top:4px}.meta{font-size:11px;color:#506176;margin-top:8px;line-height:1.5}.actions{display:flex;gap:6px;margin-top:8px}.actions a{flex:1;text-decoration:none;text-align:center;padding:8px;border-radius:9px;font-size:11px;font-weight:bold}.dir{background:#0b7cff;color:#fff}.view{background:#e8f0fa;color:#21415f}
+.empty{padding:18px;text-align:center;color:var(--muted);font-size:12px;background:#f7f9fc;border-radius:14px}
+.status{position:absolute;z-index:1200;top:155px;left:50%;transform:translateX(-50%);background:#07111fee;color:#fff;padding:9px 13px;border-radius:30px;font-size:11px;display:none;white-space:nowrap}
+.leaflet-control-zoom{margin-top:155px!important;border:0!important;box-shadow:0 4px 15px #0002!important}.leaflet-control-zoom a{border:0!important}
+.user-dot{width:18px;height:18px;border-radius:50%;background:#1683ff;border:4px solid white;box-shadow:0 0 0 7px #1683ff33}
+@media(min-width:901px){#app{box-shadow:0 0 35px #0002}.bottom{max-width:900px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="map"></div>
+
+  <div class="top">
+    <div class="header">
+      <div class="brand">
+        <div><h1>📍 قريب مني</h1><small>كل الأماكن المهمة حولك</small></div>
+        <div style="font-size:25px">🧭</div>
+      </div>
+      <div class="locationline"><span>●</span><span id="locText">اضغط لتحديد موقعك</span></div>
+      <div class="search">
+        <input id="search" placeholder="ابحث عن مكان قريب..." oninput="render()">
+        <button onclick="locate()">موقعي</button>
+      </div>
+      <div class="filters">
+        <button class="active" onclick="setType('all',this)">الكل</button>
+        <button onclick="setType('restaurant',this)">🍔 مطاعم</button>
+        <button onclick="setType('cafe',this)">☕ كافيهات</button>
+        <button onclick="setType('pharmacy',this)">💊 صيدليات</button>
+        <button onclick="setType('hospital',this)">🏥 مستشفيات</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="locbtn" onclick="locate()" title="تحديد موقعي">◎</button>
+  <div id="status" class="status"></div>
+
+  <div class="bottom">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheethead"><b id="count">الأماكن القريبة</b><span>الأقرب أولًا</span></div>
+      <div id="cards" class="cards"><div class="empty">حدد موقعك لعرض الأماكن القريبة منك.</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let map, userMarker, lat=null,lon=null,places=[],type='all',markers=[];
+const icon={restaurant:'🍔',cafe:'☕',pharmacy:'💊',hospital:'🏥'};
+const names={restaurant:'مطعم',cafe:'كافيه',pharmacy:'صيدلية',hospital:'مستشفى'};
+
+function init(){
+ map=L.map('map',{zoomControl:true}).setView([28.1099,30.7503],13);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+}
+function showStatus(t){
+ const s=document.getElementById('status');s.textContent=t;s.style.display='block';
+ clearTimeout(window.st);window.st=setTimeout(()=>s.style.display='none',3000);
+}
+function locate(){
+ if(!navigator.geolocation){showStatus('المتصفح لا يدعم تحديد الموقع');return}
+ showStatus('جاري تحديد موقعك...');
+ navigator.geolocation.getCurrentPosition(async p=>{
+   lat=p.coords.latitude;lon=p.coords.longitude;
+   map.setView([lat,lon],15);
+   if(userMarker)map.removeLayer(userMarker);
+   const div=L.divIcon({className:'',html:'<div class="user-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+   userMarker=L.marker([lat,lon],{icon:div}).addTo(map).bindPopup('📍 موقعك الحالي');
+   document.getElementById('locText').textContent='تم تحديد موقعك • جاري تحميل الأماكن';
+   await loadPlaces();
+ },()=>showStatus('اسمح بالوصول إلى الموقع من إعدادات المتصفح'),{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
+}
+async function loadPlaces(){
+ const q=`[out:json][timeout:25];(
+ nwr["amenity"="restaurant"](around:5000,${lat},${lon});
+ nwr["amenity"="cafe"](around:5000,${lat},${lon});
+ nwr["amenity"="pharmacy"](around:5000,${lat},${lon});
+ nwr["amenity"="hospital"](around:5000,${lat},${lon});
+);out center tags;`;
+ try{
+  const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q});
+  const d=await r.json();
+  places=d.elements.map(x=>{
+   const a=x.lat??x.center?.lat,b=x.lon??x.center?.lon,t=x.tags||{};
+   return {id:x.id,lat:a,lon:b,type:t.amenity,name:t.name_ar||t.name||names[t.amenity],address:t['addr:street']||t['addr:full']||'',phone:t.phone||t['contact:phone']||'',dist:distance(lat,lon,a,b)};
+  }).filter(x=>x.lat&&x.lon).sort((a,b)=>a.dist-b.dist);
+  document.getElementById('locText').textContent='موقعك محدد • تم العثور على '+places.length+' مكان';
+  renderMarkers();render();
+ }catch(e){showStatus('تعذر تحميل الأماكن، حاول مرة أخرى');}
+}
+function distance(a,b,c,d){
+ const R=6371,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r;
+ const z=Math.sin(x/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)**2;
+ return R*2*Math.atan2(Math.sqrt(z),Math.sqrt(1-z));
+}
+function fd(k){return k<1?Math.round(k*1000)+' م':k.toFixed(1)+' كم'}
+function setType(t,el){
+ type=t;document.querySelectorAll('.filters button').forEach(x=>x.classList.remove('active'));el.classList.add('active');render();
+}
+function renderMarkers(){
+ markers.forEach(m=>map.removeLayer(m));markers=[];
+ places.forEach(p=>{
+  const m=L.marker([p.lat,p.lon]).bindPopup(`<b>${esc(p.name)}</b><br>${names[p.type]} • ${fd(p.dist)}<br><a target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}">الاتجاهات</a>`);
+  markers.push(m);
+ });
+ markers.forEach(m=>m.addTo(map));
+}
+function render(){
+ const q=document.getElementById('search').value.trim().toLowerCase();
+ const list=places.filter(p=>(type==='all'||p.type===type)&&(!q||p.name.toLowerCase().includes(q))).slice(0,60);
+ document.getElementById('count').textContent=list.length?`الأماكن القريبة (${list.length})`:'لا توجد نتائج';
+ const box=document.getElementById('cards');
+ if(!list.length){box.innerHTML='<div class="empty">لا توجد نتائج مطابقة.<br>جرّب نوعًا آخر أو كلمة بحث مختلفة.</div>';return}
+ box.innerHTML=list.map(p=>{
+  const dir=`https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}`;
+  const view=`https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=18/${p.lat}/${p.lon}`;
+  return `<div class="card">
+   <div class="cardtop"><div class="ico">${icon[p.type]}</div><div class="ct"><div class="name">${esc(p.name)}</div><div class="type">${names[p.type]} • ${fd(p.dist)}</div></div></div>
+   <div class="meta">${p.address?'📍 '+esc(p.address)+'<br>':''}${p.phone?'📞 '+esc(p.phone):'لا يوجد رقم هاتف مسجل'}</div>
+   <div class="actions"><a class="dir" target="_blank" href="${dir}">الاتجاهات</a><a class="view" target="_blank" href="${view}">الخريطة</a></div>
+  </div>`;
+ }).join('');
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+init();
+</script>
+</body>
+</html>
